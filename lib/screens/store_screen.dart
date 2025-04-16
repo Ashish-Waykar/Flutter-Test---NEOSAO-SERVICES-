@@ -12,9 +12,12 @@ class StoreScreen extends StatefulWidget {
   State<StoreScreen> createState() => _StoreScreenState();
 }
 
+
+
 class _StoreScreenState extends State<StoreScreen> {
   final mapController = MapController();
-  final ScrollController scrollController = ScrollController(); // Step 1
+  final TextEditingController _searchController = TextEditingController();
+  String _query = "";
 
   @override
   void initState() {
@@ -24,17 +27,6 @@ class _StoreScreenState extends State<StoreScreen> {
 
   void _moveToStore(Store store) {
     mapController.move(LatLng(store.latitude, store.longitude), 13);
-    scrollController.animateTo( // Step 3
-      0,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
-  }
-
-  @override
-  void dispose() {
-    scrollController.dispose(); // Always dispose controllers
-    super.dispose();
   }
 
   @override
@@ -54,113 +46,141 @@ class _StoreScreenState extends State<StoreScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          return SingleChildScrollView(
-            controller: scrollController, // Step 2
-            child: Column(
-              children: [
-                SizedBox(
-                  height: 250,
-                  child: FlutterMap(
-                    mapController: mapController,
-                    options: MapOptions(
-                      center: LatLng(stores[0].latitude, stores[0].longitude),
-                      zoom: 12,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                        subdomains: ['a', 'b', 'c'],
-                      ),
-                      MarkerLayer(
-                        markers: stores.map((store) {
-                          final isSelected = selected?.code == store.code;
-                          return Marker(
-                            width: 40,
-                            height: 40,
-                            point: LatLng(store.latitude, store.longitude),
-                            builder: (_) => Icon(
-                              Icons.location_pin,
-                              color: isSelected ? Colors.blue : Colors.red,
-                              size: isSelected ? 40 : 30,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ...stores.map((store) {
-                  final isSelected = store.code == selected?.code;
+          List<Store> filteredStores = stores.where((store) {
+            return store.storeLocation.toLowerCase().contains(_query.toLowerCase());
+          }).toList();
 
-                  return GestureDetector(
-                    onTap: () {
-                      Provider.of<StoreProvider>(context, listen: false).selectStore(store);
-                      _moveToStore(store); // Move + Scroll up
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1),
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: isSelected ? Colors.orange : Colors.transparent,
-                            width: 1.5,
+          return Stack(
+            children: [
+              // Map
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: MediaQuery.of(context).size.height * 0.55,
+                child: FlutterMap(
+                  mapController: mapController,
+                  options: MapOptions(
+                    center: LatLng(stores[0].latitude, stores[0].longitude),
+                    zoom: 12,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                      subdomains: ['a', 'b', 'c'],
+                    ),
+                    MarkerLayer(
+                      markers: stores.map((store) {
+                        final isSelected = selected?.code == store.code;
+                        return Marker(
+                          width: 40,
+                          height: 40,
+                          point: LatLng(store.latitude, store.longitude),
+                          builder: (_) => Icon(
+                            Icons.location_pin,
+                            color: isSelected ? Colors.blue : Colors.red,
+                            size: isSelected ? 40 : 30,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Draggable Bottom Sheet
+              DraggableScrollableSheet(
+                initialChildSize: 0.45,
+                minChildSize: 0.45,
+                maxChildSize: 1,
+                builder: (context, scrollController) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black12)],
+                    ),
+                    child: CustomScrollView(
+                      controller: scrollController,
+                      slivers: [
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _StickyHeaderDelegate(
+                            searchController: _searchController,
+                            onChanged: (val) {
+                              setState(() {
+                                _query = val;
+                              });
+                            },
                           ),
                         ),
-                        color: isSelected ? Colors.orange.shade50 : Colors.white,
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.location_on, color: Colors.orange),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      store.storeLocation,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                              final store = filteredStores[index];
+                              final isSelected = selected?.code == store.code;
+
+                              return GestureDetector(
+                                onTap: () {
+                                  Provider.of<StoreProvider>(context, listen: false).selectStore(store);
+                                  _moveToStore(store);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  child: Card(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: isSelected ? Colors.orange : Colors.transparent,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    color: isSelected ? Colors.orange.shade50 : Colors.white,
+                                    elevation: 2,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.location_on, color: Colors.orange),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  store.storeLocation,
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                ),
+                                              ),
+                                              Text(
+                                                '${store.distance.toStringAsFixed(2)} km',
+                                                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              const Text('Away', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(store.storeAddress, style: const TextStyle(fontSize: 14)),
+                                          const SizedBox(height: 6),
+                                          const Text("Today, Thursday 12:00 PM–11:00 PM",
+                                              style: TextStyle(fontSize: 13, color: Colors.grey))
+                                        ],
                                       ),
                                     ),
                                   ),
-                                  Text(
-                                    '${store.distance.toStringAsFixed(2)} km',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    'Away',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                store.storeAddress,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                "Today, Thursday 12:00 PM–11:00 PM",
-                                style: TextStyle(fontSize: 13, color: Colors.grey),
-                              )
-                            ],
+                                ),
+                              );
+                            },
+                            childCount: filteredStores.length,
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   );
-                }).toList(),
-              ],
-            ),
+                },
+              ),
+            ],
           );
         },
       ),
@@ -170,200 +190,60 @@ class _StoreScreenState extends State<StoreScreen> {
         unselectedItemColor: Colors.white70,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fastfood),
-            label: 'Menu',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.store),
-            label: 'Store',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Cart',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.fastfood), label: 'Menu'),
+          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Store'),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
         ],
         currentIndex: 2,
         onTap: (index) {
-          // Handle navigation logic here if needed
+          // handle tab tap
         },
       ),
     );
   }
 }
 
+class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final TextEditingController searchController;
+  final Function(String) onChanged;
 
-// class _StoreScreenState extends State<StoreScreen> {
-//   final mapController = MapController();
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     Provider.of<StoreProvider>(context, listen: false).loadStores();
-//   }
-//
-//   void _moveToStore(Store store) {
-//     mapController.move(LatLng(store.latitude, store.longitude), 13);
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Store'),
-//         backgroundColor: Colors.deepOrange,
-//         centerTitle: true,
-//       ),
-//       body: Consumer<StoreProvider>(
-//         builder: (context, provider, _) {
-//           final stores = provider.stores;
-//           final selected = provider.selectedStore;
-//
-//           if (stores.isEmpty) {
-//             return const Center(child: CircularProgressIndicator());
-//           }
-//
-//           return SingleChildScrollView(
-//             child: Column(
-//               children: [
-//                 SizedBox(
-//                   height: 250,
-//                   child: FlutterMap(
-//                     mapController: mapController,
-//                     options: MapOptions(
-//                       center: LatLng(stores[0].latitude, stores[0].longitude),
-//                       zoom: 12,
-//                     ),
-//                     children: [
-//                       TileLayer(
-//                         urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-//                         subdomains: ['a', 'b', 'c'],
-//                       ),
-//                       MarkerLayer(
-//                         markers: stores.map((store) {
-//                           final isSelected = selected?.code == store.code;
-//                           return Marker(
-//                             width: 40,
-//                             height: 40,
-//                             point: LatLng(store.latitude, store.longitude),
-//                             builder: (_) => Icon(
-//                               Icons.location_pin,
-//                               color: isSelected ? Colors.blue : Colors.red,
-//                               size: isSelected ? 40 : 30,
-//                             ),
-//                           );
-//                         }).toList(),
-//                       ),
-//                     ],
-//                   ),
-//                 ),
-//                 const SizedBox(height: 10),
-//                 ...stores.map((store) {
-//                   final isSelected = store.code == selected?.code;
-//
-//                   return GestureDetector(
-//                     onTap: () {
-//                       Provider.of<StoreProvider>(context, listen: false).selectStore(store);
-//                       _moveToStore(store);
-//                     },
-//                     child: Padding(
-//                       padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1),
-//                       child: Card(
-//                         shape: RoundedRectangleBorder(
-//                           borderRadius: BorderRadius.circular(12),
-//                           side: BorderSide(
-//                             color: isSelected ? Colors.orange : Colors.transparent,
-//                             width: 1.5,
-//                           ),
-//                         ),
-//                         color: isSelected ? Colors.orange.shade50 : Colors.white,
-//                         elevation: 2,
-//                         child: Padding(
-//                           padding: const EdgeInsets.all(12.0),
-//                           child: Column(
-//                             crossAxisAlignment: CrossAxisAlignment.start,
-//                             children: [
-//                               Row(
-//                                 children: [
-//                                   const Icon(Icons.location_on, color: Colors.orange),
-//                                   const SizedBox(width: 8),
-//                                   Expanded(
-//                                     child: Text(
-//                                       store.storeLocation,
-//                                       style: const TextStyle(
-//                                         fontWeight: FontWeight.bold,
-//                                         fontSize: 16,
-//                                       ),
-//                                     ),
-//                                   ),
-//                                   Text(
-//                                     '${store.distance.toStringAsFixed(2)} km',
-//                                     style: const TextStyle(
-//                                       fontSize: 14,
-//                                       color: Colors.grey,
-//                                     ),
-//                                   ),
-//                                   const SizedBox(width: 4),
-//                                   const Text(
-//                                     'Away',
-//                                     style: TextStyle(fontSize: 12, color: Colors.grey),
-//                                   ),
-//                                 ],
-//                               ),
-//                               const SizedBox(height: 6),
-//                               Text(
-//                                 store.storeAddress,
-//                                 style: const TextStyle(fontSize: 14),
-//                               ),
-//                               const SizedBox(height: 6),
-//                               const Text(
-//                                 "Today, Thursday 12:00 PM–11:00 PM",
-//                                 style: TextStyle(fontSize: 13, color: Colors.grey),
-//                               )
-//                             ],
-//                           ),
-//                         ),
-//                       ),
-//                     ),
-//                   );
-//                 }).toList(),
-//               ],
-//             ),
-//           );
-//         },
-//       ),
-//       bottomNavigationBar: BottomNavigationBar(
-//         backgroundColor: Colors.deepOrange,
-//         selectedItemColor: Colors.white,
-//         unselectedItemColor: Colors.white70,
-//         type: BottomNavigationBarType.fixed,
-//         items: const [
-//           BottomNavigationBarItem(
-//             icon: Icon(Icons.home),
-//             label: 'Home',
-//           ),
-//           BottomNavigationBarItem(
-//             icon: Icon(Icons.fastfood),
-//             label: 'Menu',
-//           ),
-//           BottomNavigationBarItem(
-//             icon: Icon(Icons.store),
-//             label: 'Store',
-//           ),
-//           BottomNavigationBarItem(
-//             icon: Icon(Icons.shopping_cart),
-//             label: 'Cart',
-//           ),
-//         ],
-//         currentIndex: 2,
-//         onTap: (index) {
-//           // Handle navigation logic here if needed
-//         },
-//       ),
-//     );
-//   }
-// }
+  _StickyHeaderDelegate({
+    required this.searchController,
+    required this.onChanged,
+  });
+
+  @override
+  double get minExtent => 60;
+
+  @override
+  double get maxExtent => 60;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Colors.deepOrange,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      alignment: Alignment.center,
+      child: TextField(
+        controller: searchController,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: "Search nearby stores...",
+          prefixIcon: const Icon(Icons.search),
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyHeaderDelegate oldDelegate) => false;
+}
+
