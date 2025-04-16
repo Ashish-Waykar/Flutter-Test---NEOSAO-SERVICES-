@@ -14,6 +14,7 @@ class StoreScreen extends StatefulWidget {
 
 class _StoreScreenState extends State<StoreScreen> {
   final mapController = MapController();
+  final ScrollController scrollController = ScrollController(); // Step 1
 
   @override
   void initState() {
@@ -23,6 +24,17 @@ class _StoreScreenState extends State<StoreScreen> {
 
   void _moveToStore(Store store) {
     mapController.move(LatLng(store.latitude, store.longitude), 13);
+    scrollController.animateTo( // Step 3
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose(); // Always dispose controllers
+    super.dispose();
   }
 
   @override
@@ -31,152 +43,132 @@ class _StoreScreenState extends State<StoreScreen> {
       appBar: AppBar(
         title: const Text('Store'),
         backgroundColor: Colors.deepOrange,
-        centerTitle: true,  // This centers the title
-          ),
+        centerTitle: true,
+      ),
       body: Consumer<StoreProvider>(
         builder: (context, provider, _) {
           final stores = provider.stores;
           final selected = provider.selectedStore;
 
-          return Column(
-            children: [
-              Expanded(
-                flex: 1,
-                child: stores.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : FlutterMap(
-                  mapController: mapController,
-                  options: MapOptions(
-                    center: LatLng(stores[0].latitude, stores[0].longitude),
-                    zoom: 12,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                      subdomains: ['a', 'b', 'c'],
-                    ),
-                    MarkerLayer(
-                      markers: stores.map((store) {
-                        final isSelected = selected?.code == store.code;
-                        return Marker(
-                          width: 40,
-                          height: 40,
-                          point: LatLng(store.latitude, store.longitude),
-                          builder: (_) => Icon(
-                            Icons.location_pin,
-                            color: isSelected ? Colors.blue : Colors.red,
-                            size: isSelected ? 40 : 30,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: ListView.builder(
-                  itemCount: stores.length,
-                  itemBuilder: (context, index) {
-                    final store = stores[index];
-                    final isSelected = store.code == selected?.code;
+          if (stores.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                    return GestureDetector(
-                      onTap: () {
-                        Provider.of<StoreProvider>(context, listen: false).selectStore(store);
-                        _moveToStore(store);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1),
-                        child: Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: isSelected ? Colors.orange : Colors.transparent,
-                              width: 1.5,
+          return SingleChildScrollView(
+            controller: scrollController, // Step 2
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 250,
+                  child: FlutterMap(
+                    mapController: mapController,
+                    options: MapOptions(
+                      center: LatLng(stores[0].latitude, stores[0].longitude),
+                      zoom: 12,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                        subdomains: ['a', 'b', 'c'],
+                      ),
+                      MarkerLayer(
+                        markers: stores.map((store) {
+                          final isSelected = selected?.code == store.code;
+                          return Marker(
+                            width: 40,
+                            height: 40,
+                            point: LatLng(store.latitude, store.longitude),
+                            builder: (_) => Icon(
+                              Icons.location_pin,
+                              color: isSelected ? Colors.blue : Colors.red,
+                              size: isSelected ? 40 : 30,
                             ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...stores.map((store) {
+                  final isSelected = store.code == selected?.code;
+
+                  return GestureDetector(
+                    onTap: () {
+                      Provider.of<StoreProvider>(context, listen: false).selectStore(store);
+                      _moveToStore(store); // Move + Scroll up
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1),
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isSelected ? Colors.orange : Colors.transparent,
+                            width: 1.5,
                           ),
-                          color: isSelected ? Colors.orange.shade50 : Colors.white,
-                          elevation: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.location_on, color: Colors.orange),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        store.storeLocation,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      '${store.distance.toStringAsFixed(2)} km',
+                        ),
+                        color: isSelected ? Colors.orange.shade50 : Colors.white,
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.location_on, color: Colors.orange),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      store.storeLocation,
                                       style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    const Text(
-                                      'Away',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                  Text(
+                                    '${store.distance.toStringAsFixed(2)} km',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey,
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  store.storeAddress,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  "Today, Thursday 12:00 PM–11:00 PM",
-                                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                                )
-                              ],
-                            ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Away',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                store.storeAddress,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                "Today, Thursday 12:00 PM–11:00 PM",
+                                style: TextStyle(fontSize: 13, color: Colors.grey),
+                              )
+                            ],
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-
-                // child: ListView.builder(
-                //   itemCount: stores.length,
-                //   itemBuilder: (context, index) {
-                //     final store = stores[index];
-                //     final isSelected = store.code == selected?.code;
-                //
-                //     return ListTile(
-                //       title: Text(store.storeLocation),
-                //       subtitle: Text(store.storeAddress),
-                //       trailing: Text('${store.distance} km'),
-                //       tileColor: isSelected ? Colors.blue.shade100 : null,
-                //       onTap: () {
-                //         Provider.of<StoreProvider>(context, listen: false).selectStore(store);
-                //         _moveToStore(store);
-                //       },
-                //     );
-                //   },
-                // ),
-              ),
-            ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
           );
         },
       ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.deepOrange,
         selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70, // Slightly dimmed white for unselected
-        type: BottomNavigationBarType.fixed, // Needed for consistent coloring
+        unselectedItemColor: Colors.white70,
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
@@ -200,7 +192,178 @@ class _StoreScreenState extends State<StoreScreen> {
           // Handle navigation logic here if needed
         },
       ),
-
-   );
+    );
   }
 }
+
+
+// class _StoreScreenState extends State<StoreScreen> {
+//   final mapController = MapController();
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     Provider.of<StoreProvider>(context, listen: false).loadStores();
+//   }
+//
+//   void _moveToStore(Store store) {
+//     mapController.move(LatLng(store.latitude, store.longitude), 13);
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(
+//         title: const Text('Store'),
+//         backgroundColor: Colors.deepOrange,
+//         centerTitle: true,
+//       ),
+//       body: Consumer<StoreProvider>(
+//         builder: (context, provider, _) {
+//           final stores = provider.stores;
+//           final selected = provider.selectedStore;
+//
+//           if (stores.isEmpty) {
+//             return const Center(child: CircularProgressIndicator());
+//           }
+//
+//           return SingleChildScrollView(
+//             child: Column(
+//               children: [
+//                 SizedBox(
+//                   height: 250,
+//                   child: FlutterMap(
+//                     mapController: mapController,
+//                     options: MapOptions(
+//                       center: LatLng(stores[0].latitude, stores[0].longitude),
+//                       zoom: 12,
+//                     ),
+//                     children: [
+//                       TileLayer(
+//                         urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+//                         subdomains: ['a', 'b', 'c'],
+//                       ),
+//                       MarkerLayer(
+//                         markers: stores.map((store) {
+//                           final isSelected = selected?.code == store.code;
+//                           return Marker(
+//                             width: 40,
+//                             height: 40,
+//                             point: LatLng(store.latitude, store.longitude),
+//                             builder: (_) => Icon(
+//                               Icons.location_pin,
+//                               color: isSelected ? Colors.blue : Colors.red,
+//                               size: isSelected ? 40 : 30,
+//                             ),
+//                           );
+//                         }).toList(),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//                 const SizedBox(height: 10),
+//                 ...stores.map((store) {
+//                   final isSelected = store.code == selected?.code;
+//
+//                   return GestureDetector(
+//                     onTap: () {
+//                       Provider.of<StoreProvider>(context, listen: false).selectStore(store);
+//                       _moveToStore(store);
+//                     },
+//                     child: Padding(
+//                       padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1),
+//                       child: Card(
+//                         shape: RoundedRectangleBorder(
+//                           borderRadius: BorderRadius.circular(12),
+//                           side: BorderSide(
+//                             color: isSelected ? Colors.orange : Colors.transparent,
+//                             width: 1.5,
+//                           ),
+//                         ),
+//                         color: isSelected ? Colors.orange.shade50 : Colors.white,
+//                         elevation: 2,
+//                         child: Padding(
+//                           padding: const EdgeInsets.all(12.0),
+//                           child: Column(
+//                             crossAxisAlignment: CrossAxisAlignment.start,
+//                             children: [
+//                               Row(
+//                                 children: [
+//                                   const Icon(Icons.location_on, color: Colors.orange),
+//                                   const SizedBox(width: 8),
+//                                   Expanded(
+//                                     child: Text(
+//                                       store.storeLocation,
+//                                       style: const TextStyle(
+//                                         fontWeight: FontWeight.bold,
+//                                         fontSize: 16,
+//                                       ),
+//                                     ),
+//                                   ),
+//                                   Text(
+//                                     '${store.distance.toStringAsFixed(2)} km',
+//                                     style: const TextStyle(
+//                                       fontSize: 14,
+//                                       color: Colors.grey,
+//                                     ),
+//                                   ),
+//                                   const SizedBox(width: 4),
+//                                   const Text(
+//                                     'Away',
+//                                     style: TextStyle(fontSize: 12, color: Colors.grey),
+//                                   ),
+//                                 ],
+//                               ),
+//                               const SizedBox(height: 6),
+//                               Text(
+//                                 store.storeAddress,
+//                                 style: const TextStyle(fontSize: 14),
+//                               ),
+//                               const SizedBox(height: 6),
+//                               const Text(
+//                                 "Today, Thursday 12:00 PM–11:00 PM",
+//                                 style: TextStyle(fontSize: 13, color: Colors.grey),
+//                               )
+//                             ],
+//                           ),
+//                         ),
+//                       ),
+//                     ),
+//                   );
+//                 }).toList(),
+//               ],
+//             ),
+//           );
+//         },
+//       ),
+//       bottomNavigationBar: BottomNavigationBar(
+//         backgroundColor: Colors.deepOrange,
+//         selectedItemColor: Colors.white,
+//         unselectedItemColor: Colors.white70,
+//         type: BottomNavigationBarType.fixed,
+//         items: const [
+//           BottomNavigationBarItem(
+//             icon: Icon(Icons.home),
+//             label: 'Home',
+//           ),
+//           BottomNavigationBarItem(
+//             icon: Icon(Icons.fastfood),
+//             label: 'Menu',
+//           ),
+//           BottomNavigationBarItem(
+//             icon: Icon(Icons.store),
+//             label: 'Store',
+//           ),
+//           BottomNavigationBarItem(
+//             icon: Icon(Icons.shopping_cart),
+//             label: 'Cart',
+//           ),
+//         ],
+//         currentIndex: 2,
+//         onTap: (index) {
+//           // Handle navigation logic here if needed
+//         },
+//       ),
+//     );
+//   }
+// }
