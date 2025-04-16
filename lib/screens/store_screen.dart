@@ -13,10 +13,10 @@ class StoreScreen extends StatefulWidget {
 }
 
 
-
 class _StoreScreenState extends State<StoreScreen> {
   final mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
+  final ValueNotifier<double> _mapHeightFraction = ValueNotifier(0.55);
   String _query = "";
 
   @override
@@ -52,133 +52,148 @@ class _StoreScreenState extends State<StoreScreen> {
 
           return Stack(
             children: [
-              // Map
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: MediaQuery.of(context).size.height * 0.55,
-                child: FlutterMap(
-                  mapController: mapController,
-                  options: MapOptions(
-                    center: LatLng(stores[0].latitude, stores[0].longitude),
-                    zoom: 12,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                      subdomains: ['a', 'b', 'c'],
-                    ),
-                    MarkerLayer(
-                      markers: stores.map((store) {
-                        final isSelected = selected?.code == store.code;
-                        return Marker(
-                          width: 40,
-                          height: 40,
-                          point: LatLng(store.latitude, store.longitude),
-                          builder: (_) => Icon(
-                            Icons.location_pin,
-                            color: isSelected ? Colors.blue : Colors.red,
-                            size: isSelected ? 40 : 30,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Draggable Bottom Sheet
-              DraggableScrollableSheet(
-                initialChildSize: 0.45,
-                minChildSize: 0.45,
-                maxChildSize: 1,
-                builder: (context, scrollController) {
-                  return Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                      boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black12)],
-                    ),
-                    child: CustomScrollView(
-                      controller: scrollController,
-                      slivers: [
-                        SliverPersistentHeader(
-                          pinned: true,
-                          delegate: _StickyHeaderDelegate(
-                            searchController: _searchController,
-                            onChanged: (val) {
-                              setState(() {
-                                _query = val;
-                              });
-                            },
-                          ),
+              // Dynamic height map
+              ValueListenableBuilder<double>(
+                valueListenable: _mapHeightFraction,
+                builder: (context, heightFraction, _) {
+                  return Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: MediaQuery.of(context).size.height * heightFraction.clamp(0.25, 0.8),
+                    child: FlutterMap(
+                      mapController: mapController,
+                      options: MapOptions(
+                        center: LatLng(stores[0].latitude, stores[0].longitude),
+                        zoom: 12,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          subdomains: ['a', 'b', 'c'],
                         ),
-                        SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                              final store = filteredStores[index];
-                              final isSelected = selected?.code == store.code;
-
-                              return GestureDetector(
-                                onTap: () {
-                                  Provider.of<StoreProvider>(context, listen: false).selectStore(store);
-                                  _moveToStore(store);
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  child: Card(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      side: BorderSide(
-                                        color: isSelected ? Colors.orange : Colors.transparent,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    color: isSelected ? Colors.orange.shade50 : Colors.white,
-                                    elevation: 2,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Icon(Icons.location_on, color: Colors.orange),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  store.storeLocation,
-                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                                ),
-                                              ),
-                                              Text(
-                                                '${store.distance.toStringAsFixed(2)} km',
-                                                style: const TextStyle(fontSize: 14, color: Colors.grey),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              const Text('Away', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(store.storeAddress, style: const TextStyle(fontSize: 14)),
-                                          const SizedBox(height: 6),
-                                          const Text("Today, Thursday 12:00 PM–11:00 PM",
-                                              style: TextStyle(fontSize: 13, color: Colors.grey))
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                            childCount: filteredStores.length,
-                          ),
+                        MarkerLayer(
+                          markers: stores.map((store) {
+                            final isSelected = selected?.code == store.code;
+                            return Marker(
+                              width: 40,
+                              height: 40,
+                              point: LatLng(store.latitude, store.longitude),
+                              builder: (_) => Icon(
+                                Icons.location_pin,
+                                color: isSelected ? Colors.blue : Colors.red,
+                                size: isSelected ? 40 : 30,
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ],
                     ),
                   );
                 },
+              ),
+
+              // Draggable Bottom Sheet
+              NotificationListener<DraggableScrollableNotification>(
+                onNotification: (notification) {
+                  // final dragFraction = 1 - notification.extent.clamp(0.45, 1.0);
+                  // _mapHeightFraction.value = (0.55 * dragFraction).clamp(0.25, 0.8);
+
+                  final dragFraction = 1 - notification.extent.clamp(0.25, 1.0);
+                  _mapHeightFraction.value = (0.95 * dragFraction).clamp(0.103, 0.8);
+                  return true;
+                },
+                child: DraggableScrollableSheet(
+                  initialChildSize: 0.45,
+                  minChildSize: 0.45,
+                  maxChildSize: 1.0,
+                  builder: (context, scrollController) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black12)],
+                      ),
+                      child: CustomScrollView(
+                        controller: scrollController,
+                        slivers: [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _StickyHeaderDelegate(
+                              searchController: _searchController,
+                              onChanged: (val) {
+                                setState(() {
+                                  _query = val;
+                                });
+                              },
+                            ),
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                final store = filteredStores[index];
+                                final isSelected = selected?.code == store.code;
+
+                                return GestureDetector(
+                                  onTap: () {
+                                    Provider.of<StoreProvider>(context, listen: false).selectStore(store);
+                                    _moveToStore(store);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    child: Card(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: BorderSide(
+                                          color: isSelected ? Colors.orange : Colors.transparent,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      color: isSelected ? Colors.orange.shade50 : Colors.white,
+                                      elevation: 2,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.location_on, color: Colors.orange),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    store.storeLocation,
+                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '${store.distance.toStringAsFixed(2)} km',
+                                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                const Text('Away', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(store.storeAddress, style: const TextStyle(fontSize: 14)),
+                                            const SizedBox(height: 6),
+                                            const Text("Today, Thursday 12:00 PM–11:00 PM",
+                                                style: TextStyle(fontSize: 13, color: Colors.grey))
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              childCount: filteredStores.length,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           );
@@ -197,12 +212,14 @@ class _StoreScreenState extends State<StoreScreen> {
         ],
         currentIndex: 2,
         onTap: (index) {
-          // handle tab tap
+          // Handle navigation
         },
       ),
     );
   }
 }
+
+
 
 class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   final TextEditingController searchController;
